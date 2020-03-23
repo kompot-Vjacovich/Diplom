@@ -1,12 +1,4 @@
 
-# Useful links
-# http://www.pygame.org/wiki/OBJFileLoader
-# https://rdmilligan.wordpress.com/2015/10/15/augmented-reality-using-opencv-opengl-and-blender/
-# https://clara.io/library
-
-# TODO -> Implement command line arguments (scale, model and object to be projected)
-#      -> Refactor and organize code (proper funcition definition and separation, classes, error handling...)
-
 import argparse
 
 import cv2
@@ -33,13 +25,14 @@ def main():
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     # load the reference surface that will be searched in the video stream
     dir_name = os.getcwd()
-    model = cv2.imread(os.path.join(dir_name, 'answer/yellow.png'), 0)
+    model = cv2.imread(os.path.join(dir_name, 'answer/fuck.jpg'), 0)
     # Compute model keypoints and its descriptors
     kp_model, des_model = orb.detectAndCompute(model, None)
     # Load 3D model from OBJ file
     obj = OBJ(os.path.join(dir_name, 'models/test.obj'), swapyz=True)  
     # init video capture
     cap = cv2.VideoCapture(0)
+
 
     while True:
         # read the current frame
