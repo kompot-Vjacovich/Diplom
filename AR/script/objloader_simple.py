@@ -43,3 +43,9 @@ class OBJ:
                         norms.append(0)
                 #self.faces.append((face, norms, texcoords, material))
                 self.faces.append((face, norms, texcoords))
+    def __str__(self):
+        print(self.vertices)
+        print(self.normals)
+        print(self.texcoords)
+        print(self.faces)
+        return "end"
