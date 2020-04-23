@@ -31,8 +31,8 @@ def getTextWithTesseract(frame):
     text = tesseract.image_to_string(IM.open(filename), lang="rus")
     os.remove(filename)
 
-    if similarity(text, "Васе 18") > 0.5:
-        text = "ВАСЕ 18"
+    if similarity(text, "Симферополь") > 0.5:
+        text = "Симферополь"
     else:
         text = "Плохо виден текст"
 
@@ -48,14 +48,15 @@ class CamApp(App):
         layout.add_widget(self.img1)
         #opencv2 stuffs
         self.capture = cv2.VideoCapture(0)
-        #cv2.namedWindow("CV2 Image")
+        # cv2.namedWindow("CV2 Image")
         Clock.schedule_interval(self.update, 1.0/33.0)
         return layout
 
     def update(self, dt):
         # display image from cam in opencv window
         ret, frame = self.capture.read()
-        #cv2.imshow("CV2 Image", frame)
+        # cv2.imshow("CV2 Image", frame)
+
         # convert it to texture
         buf1 = cv2.flip(frame, 0)
 
@@ -81,4 +82,4 @@ class CamApp(App):
 
 if __name__ == '__main__':
     CamApp().run()
-    #cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()

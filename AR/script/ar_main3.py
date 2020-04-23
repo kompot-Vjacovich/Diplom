@@ -8,7 +8,7 @@ from objloader_simple import *
 
 # Минимальное количество совпадений, которые необходимо найти,
 # чтобы считать распознование действительным
-MIN_MATCHES = 45  
+MIN_MATCHES = 20 
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
     # Текущая директория, учитывая особенности ОС
     dir_name = os.getcwd()
     # Исходная модель
-    model = cv2.imread('answer/fuck.jpg')
+    model = cv2.imread('answer/test.jpg')
     # 3D модель в формате OBJ
     obj = OBJ('models/pirate.obj', swapyz=True)
     # Матрица параметров камеры 
@@ -32,11 +32,12 @@ def main():
     while True:  
         # Считываем текущий кадр
         ret, frame = cap.read()
+        grayframe = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if not ret:
             print("Unable to capture video")
             return   
         # Вычисление ключевых точек сцены и её дескрипторов
-        kp_frame, des_frame = orb.detectAndCompute(frame, None)
+        kp_frame, des_frame = orb.detectAndCompute(grayframe, None)
         # Сопоставление дескрипторов сцены и дескрипторов модели
         matches = bf.match(des_model, des_frame)
         # Сортировка их в порядке удалённости
@@ -54,7 +55,7 @@ def main():
             if args.rectangle:
                 # Рисование прямоугольника(рамки) вокруг найденной модели
                 h, w, channels = model.shape
-                pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
+                pts = np.float32([[0, 0], [0, h ], [w, h], [w , 0]]).reshape(-1, 1, 2)
                 # Расставление угловых точек
                 dst = cv2.perspectiveTransform(pts, homography)
                 # Соединение их линиями  

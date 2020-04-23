@@ -1,27 +1,13 @@
-#import kivy packages
-from kivy.app import App
-from kivy.uix.widget import Widget
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.image import Image
-from kivy.clock import Clock
-from kivy.graphics.texture import Texture
-#import OpenCV package
+import numpy as np
 import cv2
-#import Recognition packages
-import pytesseract as tesseract
-import os
-from PIL import Image as IM
-#import other packages
-import numpy
 
-class MainApp(App):
-    def build(self):
-        img = Image(source='C://Users/HP15/Pictures/IMG_1191.PNG',
-                    pos_hint={'center_x':.5, 'center_y':.5})
- 
-        return img
- 
-if __name__ == '__main__':
-    app = MainApp()
-    app.run()
+im = cv2.imread('dog.jpg')
+imgray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+# blur = cv2.GaussianBlur(imgray,(5,5),0)
+ret,thresh = cv2.threshold(imgray,127,255,0)
+contours, hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+img = cv2.drawContours(im, contours, -1, (0,255,0), 3)
+
+cv2.imshow("img", img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
