@@ -13,59 +13,115 @@ import pytesseract as tesseract
 import os
 from PIL import Image as IM
 #import other packages
-import numpy
+import numpy as np
 import difflib
+import re
+import copy
 
+# Создание класса для хранения городов
+class City():
+    def __init__(self, image):
+        self.img = image
+        self.kp, self.desc = sift.detectAndCompute(image, None)
+        
+# Вычисление дескрипторов для заготовок городов
+MIN_MATCH_COUNT = 15
+sift = cv2.xfeatures2d.SIFT_create()
+Simf = City(cv2.imread('test.jpg',0))
+# Feature matching
+index_params = dict(algorithm = 0, trees = 5)
+search_params = dict()
+flann = cv2.FlannBasedMatcher(index_params, search_params)
+
+# Определение схожести строк
 def similarity(s1, s2):
-  normalized1 = s1.lower()
-  normalized2 = s2.lower()
-  matcher = difflib.SequenceMatcher(None, normalized1, normalized2)
-  return matcher.ratio()
+    normalized1 = s1.lower()
+    normalized2 = s2.lower()
+    matcher = difflib.SequenceMatcher(None, normalized1, normalized2)
+    return matcher.ratio()
 
+# Извлечение текста из изображения
 def getTextWithTesseract(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray,(5,5),0)
     edges = cv2.Canny(blur,100,200)
-    filename = "{}.png".format(os.getpid())
-    cv2.imwrite(filename, edges)
-    text = tesseract.image_to_string(IM.open(filename), lang="rus")
-    os.remove(filename)
 
-    if similarity(text, "Симферополь") > 0.5:
-        text = "Симферополь"
-    else:
-        text = "Плохо виден текст"
+    # Для распознавания текста как одного слова
+    custom_oem_psm_config = r'--oem 3 --psm 6 bazaar'
+    # Поиск слова и разделение его на символы с координатами каждого из них
+    dirty = tesseract.image_to_boxes(edges, lang="rus", config=custom_oem_psm_config).split('\n')
+    allSymb = list(map((lambda x: x.split(' ')), dirty))
+    # Удаление не кириллических символов
+    letters = list(filter(lambda x: len(x[0]) > 0 and ord(x[0]) in range(1040, 1103), allSymb))
+    # Сортировка по х-координате левого нижнего угла буквы
+    inRorder = sorted(letters, key=lambda sym: int(sym[1]))
+
+    text = ''.join(list(map(lambda x: x[0], inRorder)))
 
     return text
+
+# Проекция 3D модели в кадр
+def pasteModelIntoFrame(city, frame, goodImg):
+    kp1 = city.kp
+    desc1 = city.desc
+    final_image = frame
+    grayframe = cv2.cvtColor(goodImg, cv2.COLOR_BGR2GRAY)
+    kp2, desc2 = sift.detectAndCompute(grayframe, None)
+    if desc2 is not None:
+        # Находим по 2 ближайших дескриптора для каждой точки
+        # Два раза: маркер к картинке и обратно (они будут разными)
+        matches1to2 = flann.knnMatch(desc1, desc2, k=2)
+        matches2to1 = flann.knnMatch(desc2, desc1, k=2)
+        # Выкидываем точки с менее чем двумя соответствиями
+        matches1to2 = [x for x in matches1to2 if len(x) == 2]
+        matches2to1 = [x for x in matches2to1 if len(x) == 2]
+        # Выкидываем точки, в которых не сильно уверены
+        ratio = 0.6
+        good1to2 = [m for m,n in matches1to2 if m.distance < ratio * n.distance]
+        good2to1 = list([m for m,n in matches2to1 if m.distance < ratio * n.distance])
+        # Выкидываем несимметричные соответствия
+        good = []
+        for m in good1to2:
+            for n in good2to1:
+                if m.queryIdx == n.trainIdx and n.queryIdx == m.trainIdx:
+                    good.append(m)
+
+        if len(good)>MIN_MATCH_COUNT:
+            query_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+            train_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
+            matches_mask = mask.ravel().tolist()
+            if matrix is not None:
+                # Perspective transform
+                h, w = city.img.shape
+                pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
+                dst = cv2.perspectiveTransform(pts, matrix)
+                final_image = cv2.polylines(final_image, [np.int32(dst)], True, (255, 0, 0), 3)
+    
+
+    return final_image
 
 class CamApp(App):
 
     def build(self):
         self.img1=Image()
         layout = BoxLayout(orientation="vertical")
-        self.label = Label()
-        layout.add_widget(self.label)
         layout.add_widget(self.img1)
         #opencv2 stuffs
         self.capture = cv2.VideoCapture(0)
-        # cv2.namedWindow("CV2 Image")
-        Clock.schedule_interval(self.update, 1.0/33.0)
+        self.city = Simf
+        _, self.goodImg = self.capture.read()
+        Clock.schedule_interval(self.update, 1.0/60.0)
+        Clock.schedule_interval(self.recognition, 1.0)
         return layout
 
     def update(self, dt):
-        # display image from cam in opencv window
-        ret, frame = self.capture.read()
-        # cv2.imshow("CV2 Image", frame)
+        _, frame = self.capture.read()
 
-        # convert it to texture
-        buf1 = cv2.flip(frame, 0)
+        frame = pasteModelIntoFrame(self.city, frame, self.goodImg);
+       
+        buf1 = cv2.flip(frame, 0)        
 
-        #tesseract
-        text = getTextWithTesseract(frame)
-        self.label.text = text
-        self.label.size_hint = (1, 0.2)
-
-        # display image from the texture
         width = self.img1.size[0]
         height = int(frame.shape[0]*width/frame.shape[1])
         dim = (width, height)
@@ -76,10 +132,19 @@ class CamApp(App):
         texture1.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
 
         self.img1.texture = texture1
-        self.img1.allow_stretch = True
-        self.img1.keep_ratio = False
-        #cv2.imshow("test", edges)
 
+    def recognition(self, dt):
+        _, self.goodImg = self.capture.read()
+
+        text = getTextWithTesseract(self.goodImg).lower()
+        print(text)
+        if similarity(text, "cимферополь") > 0.5 or text.find("симферополь") != -1:
+            text = "Симферополь"
+            self.city = Simf
+        else:
+            text += " Плохо"
+
+        print(text)
 if __name__ == '__main__':
     CamApp().run()
     # cv2.destroyAllWindows()
