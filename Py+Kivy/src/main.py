@@ -1,4 +1,4 @@
-#import kivy packages
+# import kivy packages
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
@@ -6,13 +6,13 @@ from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.graphics.texture import Texture
-#import OpenCV package
+# import OpenCV package
 import cv2
-#import Recognition packages
+# import Recognition package
 import pytesseract as tesseract
-import os
-from PIL import Image as IM
-#import other packages
+# import threading package
+import continuous_threading as ct
+# import other packages
 import numpy as np
 import difflib
 import re
@@ -32,6 +32,8 @@ Simf = City(cv2.imread('test.jpg',0))
 index_params = dict(algorithm = 0, trees = 5)
 search_params = dict()
 flann = cv2.FlannBasedMatcher(index_params, search_params)
+th1 = ''
+th2 = ''
 
 # Определение схожести строк
 def similarity(s1, s2):
@@ -86,7 +88,7 @@ def pasteModelIntoFrame(city, frame, goodImg):
                 if m.queryIdx == n.trainIdx and n.queryIdx == m.trainIdx:
                     good.append(m)
 
-        if len(good)>MIN_MATCH_COUNT:
+        if len(good) > MIN_MATCH_COUNT:
             query_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
             train_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
             matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
@@ -112,7 +114,10 @@ class CamApp(App):
         self.city = Simf
         _, self.goodImg = self.capture.read()
         Clock.schedule_interval(self.update, 1.0/60.0)
-        Clock.schedule_interval(self.recognition, 1.0)
+        th1 = ct.PeriodicThread(1.0/60.0, self.update)
+        th1.start()
+        th2 = ct.PeriodicThread(1.0, self.recognition)
+        th2.start()
         return layout
 
     def update(self, dt):
@@ -133,7 +138,7 @@ class CamApp(App):
 
         self.img1.texture = texture1
 
-    def recognition(self, dt):
+    def recognition(self):
         _, self.goodImg = self.capture.read()
 
         text = getTextWithTesseract(self.goodImg).lower()
@@ -141,10 +146,21 @@ class CamApp(App):
         if similarity(text, "cимферополь") > 0.5 or text.find("симферополь") != -1:
             text = "Симферополь"
             self.city = Simf
+        elif similarity(text, "севастополь") > 0.5 or text.find("севастополь") != -1:
+        	text = "Севастополь"
+            self.city = Sevas
+        elif similarity(text, "керчь") > 0.5 or text.find("керчь") != -1:
+        	text = "Керчь"
+            self.city = Kerch
+        elif similarity(text, "судак") > 0.5 or text.find("судак") != -1:
+        	text = "Судак"
+            self.city = Sudak
+        elif similarity(text, "ялта") > 0.5 or text.find("ялта") != -1:
+        	text = "Ялта"
+            self.city = Yalta
         else:
             text += " Плохо"
 
         print(text)
 if __name__ == '__main__':
     CamApp().run()
-    # cv2.destroyAllWindows()
