@@ -15,19 +15,22 @@ import continuous_threading as ct
 # import other packages
 import numpy as np
 import difflib
-import re
 import copy
+# my packages
+from src.objloader import *
+from src.render import *
 
 # Создание класса для хранения городов
 class City():
-    def __init__(self, image):
-        self.img = image
-        self.kp, self.desc = sift.detectAndCompute(image, None)
+    def __init__(self, image, model):
+        self.img = cv2.imread(image,0)
+        self.kp, self.desc = sift.detectAndCompute(self.img, None)
+        self.model = OBJ(model, swapyz=True)
+
         
-# Вычисление дескрипторов для заготовок городов
 MIN_MATCH_COUNT = 15
 sift = cv2.xfeatures2d.SIFT_create()
-Simf = City(cv2.imread('test.jpg',0))
+Simf = City('ref/Simf.jpg', 'models/test.obj')
 # Feature matching
 index_params = dict(algorithm = 0, trees = 5)
 search_params = dict()
@@ -93,12 +96,17 @@ def pasteModelIntoFrame(city, frame, goodImg):
             train_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
             matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
             matches_mask = mask.ravel().tolist()
+            # if matrix is not None:
+            #     # Perspective transform
+            #     h, w = city.img.shape
+            #     pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
+            #     dst = cv2.perspectiveTransform(pts, matrix)
+            #     final_image = cv2.polylines(final_image, [np.int32(dst)], True, (255, 0, 0), 3)
             if matrix is not None:
-                # Perspective transform
-                h, w = city.img.shape
-                pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
-                dst = cv2.perspectiveTransform(pts, matrix)
-                final_image = cv2.polylines(final_image, [np.int32(dst)], True, (255, 0, 0), 3)
+                # Получение матрицы 3D-проекции из параметров матрицы гомографии и камеры
+                projection = projection_matrix(camera_parameters, matrix)  
+                # Проектирование модели
+                final_image = render(frame, obj, projection, img1)
     
 
     return final_image
@@ -114,8 +122,6 @@ class CamApp(App):
         self.city = Simf
         _, self.goodImg = self.capture.read()
         Clock.schedule_interval(self.update, 1.0/60.0)
-        th1 = ct.PeriodicThread(1.0/60.0, self.update)
-        th1.start()
         th2 = ct.PeriodicThread(1.0, self.recognition)
         th2.start()
         return layout
@@ -146,18 +152,18 @@ class CamApp(App):
         if similarity(text, "cимферополь") > 0.5 or text.find("симферополь") != -1:
             text = "Симферополь"
             self.city = Simf
-        elif similarity(text, "севастополь") > 0.5 or text.find("севастополь") != -1:
-        	text = "Севастополь"
-            self.city = Sevas
-        elif similarity(text, "керчь") > 0.5 or text.find("керчь") != -1:
-        	text = "Керчь"
-            self.city = Kerch
-        elif similarity(text, "судак") > 0.5 or text.find("судак") != -1:
-        	text = "Судак"
-            self.city = Sudak
-        elif similarity(text, "ялта") > 0.5 or text.find("ялта") != -1:
-        	text = "Ялта"
-            self.city = Yalta
+        # elif similarity(text, "севастополь") > 0.5 or text.find("севастополь") != -1:
+        # 	text = "Севастополь"
+        #     self.city = Sevas
+        # elif similarity(text, "керчь") > 0.5 or text.find("керчь") != -1:
+        # 	text = "Керчь"
+        #     self.city = Kerch
+        # elif similarity(text, "судак") > 0.5 or text.find("судак") != -1:
+        # 	text = "Судак"
+        #     self.city = Sudak
+        # elif similarity(text, "ялта") > 0.5 or text.find("ялта") != -1:
+        # 	text = "Ялта"
+        #     self.city = Yalta
         else:
             text += " Плохо"
 

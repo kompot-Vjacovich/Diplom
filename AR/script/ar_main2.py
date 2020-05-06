@@ -13,7 +13,7 @@ MIN_MATCH_COUNT = 15
 
 def main():
     # Исходная модель
-    img1 = cv2.imread('answer/fuck.jpg')
+    img1 = cv2.imread('answer/test2.jpg')
     # 3D модель в формате OBJ
     obj = OBJ('models/test.obj', swapyz=True)
     # Матрица параметров камеры 
@@ -74,7 +74,7 @@ def render(img, obj, projection, model, color=False):
     Рендер 3D модели на кадр
     """
     vertices = obj.vertices
-    scale_matrix = np.eye(3)*2
+    scale_matrix = np.eye(3)
     h, w, channels = model.shape
 
     for face in obj.faces:
