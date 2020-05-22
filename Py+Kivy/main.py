@@ -6,16 +6,12 @@ from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.graphics.texture import Texture
-# import OpenCV package
-import cv2
 # import Recognition package
 import pytesseract as tesseract
 # import threading package
 import continuous_threading as ct
 # import other packages
-import numpy as np
-import difflib
-import copy
+from fuzzywuzzy import fuzz
 # my packages
 from src.objloader import *
 from src.render import *
@@ -27,23 +23,15 @@ class City():
         self.kp, self.desc = sift.detectAndCompute(self.img, None)
         self.model = OBJ(model, swapyz=True)
 
-        
-MIN_MATCH_COUNT = 15
-sift = cv2.xfeatures2d.SIFT_create()
 Simf = City('ref/Simf.jpg', 'models/test.obj')
-# Feature matching
-index_params = dict(algorithm = 0, trees = 5)
-search_params = dict()
-flann = cv2.FlannBasedMatcher(index_params, search_params)
-th1 = ''
-th2 = ''
+th = ''
 
 # Определение схожести строк
 def similarity(s1, s2):
-    normalized1 = s1.lower()
-    normalized2 = s2.lower()
-    matcher = difflib.SequenceMatcher(None, normalized1, normalized2)
-    return matcher.ratio()
+    low1 = s1.lower()
+    low2 = s2.lower()
+    match = fuzz.partial_ratio(low2, low1)
+    return match/100
 
 # Извлечение текста из изображения
 def getTextWithTesseract(frame):
@@ -52,64 +40,16 @@ def getTextWithTesseract(frame):
     edges = cv2.Canny(blur,100,200)
 
     # Для распознавания текста как одного слова
-    custom_oem_psm_config = r'--oem 3 --psm 6 bazaar'
+    custom_oem_psm_config = r'--oem 3 --psm 7 bazaar'
     # Поиск слова и разделение его на символы с координатами каждого из них
-    dirty = tesseract.image_to_boxes(edges, lang="rus", config=custom_oem_psm_config).split('\n')
-    allSymb = list(map((lambda x: x.split(' ')), dirty))
+    dirty = tesseract.image_to_string(blur, lang="rus", config=custom_oem_psm_config).split('\n')
+    allSymb = list(map((lambda x: list(x)), dirty))
     # Удаление не кириллических символов
-    letters = list(filter(lambda x: len(x[0]) > 0 and ord(x[0]) in range(1040, 1103), allSymb))
-    # Сортировка по х-координате левого нижнего угла буквы
-    inRorder = sorted(letters, key=lambda sym: int(sym[1]))
+    letters = list(map(lambda e: list(filter(lambda x: len(x) > 0 and ord(x) in range(1040, 1103), e)), allSymb))
 
-    text = ''.join(list(map(lambda x: x[0], inRorder)))
+    text = ''.join(list(map(lambda x: ''.join(x), letters)))
 
     return text
-
-# Проекция 3D модели в кадр
-def pasteModelIntoFrame(city, frame, goodImg):
-    kp1 = city.kp
-    desc1 = city.desc
-    final_image = frame
-    grayframe = cv2.cvtColor(goodImg, cv2.COLOR_BGR2GRAY)
-    kp2, desc2 = sift.detectAndCompute(grayframe, None)
-    if desc2 is not None:
-        # Находим по 2 ближайших дескриптора для каждой точки
-        # Два раза: маркер к картинке и обратно (они будут разными)
-        matches1to2 = flann.knnMatch(desc1, desc2, k=2)
-        matches2to1 = flann.knnMatch(desc2, desc1, k=2)
-        # Выкидываем точки с менее чем двумя соответствиями
-        matches1to2 = [x for x in matches1to2 if len(x) == 2]
-        matches2to1 = [x for x in matches2to1 if len(x) == 2]
-        # Выкидываем точки, в которых не сильно уверены
-        ratio = 0.6
-        good1to2 = [m for m,n in matches1to2 if m.distance < ratio * n.distance]
-        good2to1 = list([m for m,n in matches2to1 if m.distance < ratio * n.distance])
-        # Выкидываем несимметричные соответствия
-        good = []
-        for m in good1to2:
-            for n in good2to1:
-                if m.queryIdx == n.trainIdx and n.queryIdx == m.trainIdx:
-                    good.append(m)
-
-        if len(good) > MIN_MATCH_COUNT:
-            query_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-            train_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
-            matches_mask = mask.ravel().tolist()
-            # if matrix is not None:
-            #     # Perspective transform
-            #     h, w = city.img.shape
-            #     pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
-            #     dst = cv2.perspectiveTransform(pts, matrix)
-            #     final_image = cv2.polylines(final_image, [np.int32(dst)], True, (255, 0, 0), 3)
-            if matrix is not None:
-                # Получение матрицы 3D-проекции из параметров матрицы гомографии и камеры
-                projection = projection_matrix(camera_parameters, matrix)  
-                # Проектирование модели
-                final_image = render(frame, obj, projection, img1)
-    
-
-    return final_image
 
 class CamApp(App):
 
@@ -122,8 +62,8 @@ class CamApp(App):
         self.city = Simf
         _, self.goodImg = self.capture.read()
         Clock.schedule_interval(self.update, 1.0/60.0)
-        th2 = ct.PeriodicThread(1.0, self.recognition)
-        th2.start()
+        th = ct.PeriodicThread(1.0, self.recognition)
+        th.start()
         return layout
 
     def update(self, dt):
@@ -147,21 +87,22 @@ class CamApp(App):
     def recognition(self):
         _, self.goodImg = self.capture.read()
 
-        text = getTextWithTesseract(self.goodImg).lower()
+        text = getTextWithTesseract(self.goodImg)
+        text = text.lower()
         print(text)
-        if similarity(text, "cимферополь") > 0.5 or text.find("симферополь") != -1:
+        if similarity(text, "cимферополь") > 0.7:
             text = "Симферополь"
             self.city = Simf
-        # elif similarity(text, "севастополь") > 0.5 or text.find("севастополь") != -1:
+        # elif similarity(text, "севастополь") > 0.5:
         # 	text = "Севастополь"
         #     self.city = Sevas
-        # elif similarity(text, "керчь") > 0.5 or text.find("керчь") != -1:
+        # elif similarity(text, "керчь") > 0.5:
         # 	text = "Керчь"
         #     self.city = Kerch
-        # elif similarity(text, "судак") > 0.5 or text.find("судак") != -1:
+        # elif similarity(text, "судак") > 0.5:
         # 	text = "Судак"
         #     self.city = Sudak
-        # elif similarity(text, "ялта") > 0.5 or text.find("ялта") != -1:
+        # elif similarity(text, "ялта") > 0.5:
         # 	text = "Ялта"
         #     self.city = Yalta
         else:

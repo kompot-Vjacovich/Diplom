@@ -13,9 +13,9 @@ MIN_MATCH_COUNT = 15
 
 def main():
     # Исходная модель
-    img1 = cv2.imread('answer/test2.jpg')
+    img1 = cv2.imread('answer/fuck.jpg')
     # 3D модель в формате OBJ
-    obj = OBJ('models/test.obj', swapyz=True)
+    obj = OBJ('models/simf.obj', swapyz=True)
     # Матрица параметров камеры 
     camera_parameters = np.array([[800, 0, 320], [0, 800, 240], [0, 0, 1]])
     sift = cv2.xfeatures2d.SIFT_create()
@@ -53,12 +53,11 @@ def main():
                 query_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
                 train_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
                 matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
-                matches_mask = mask.ravel().tolist()
                 if matrix is not None:
                     # Получение матрицы 3D-проекции из параметров матрицы гомографии и камеры
                     projection = projection_matrix(camera_parameters, matrix)  
                     # Проектирование модели
-                    final_image = render(frame, obj, projection, img1, False)
+                    final_image = render(frame, obj, projection, img1, True)
 
             #Выведение результатов
             cv2.imshow('frame', final_image)
@@ -73,24 +72,28 @@ def render(img, obj, projection, model, color=False):
     """
     Рендер 3D модели на кадр
     """
-    vertices = obj.vertices
     scale_matrix = np.eye(3)
     h, w, channels = model.shape
+    sorted_faces = sort_points(obj.faces, obj.vertices)
+    maximum = sorted_faces[0]
+    maximum = sorted(maximum, key=lambda p: p[1])
+    maximum = maximum[-1][1]
 
-    for face in obj.faces:
-        face_vertices = face[0]
-        points = np.array([vertices[vertex - 1] for vertex in face_vertices])
-        points = np.dot(points, scale_matrix)
+    for face in sorted_faces:
+        points = np.dot(face, scale_matrix)
         # Визуализация модели в середине опорной поверхности. 
         # Для этого точки модели должны быть смещены
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+        distance = np.array([p[1] for p in points])
         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+        print(dst)
         imgpts = np.int32(dst)
         if color is False:
             cv2.fillConvexPoly(img, imgpts, (137, 27, 211))
         else:
-            color = hex_to_rgb(face[-1])
-            color = color[::-1]  # reverse
+            # positive = list(map(lambda x: abs(x), distance))
+            color = 128*np.mean(distance)/maximum
+            color = tuple([round(color)] * 3)
             cv2.fillConvexPoly(img, imgpts, color)
 
     return img
@@ -128,6 +131,17 @@ def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     h_len = len(hex_color)
     return tuple(int(hex_color[i:i + h_len // 3], 16) for i in range(0, h_len, h_len // 3))
+
+def sort_points(faces, vertices):
+    all_points = []
+    for face in faces:
+        face_vertices = face[0]
+        points = np.array([vertices[vertex - 1] for vertex in face_vertices])
+        all_points.append(points)
+
+    sorted_points = sorted(all_points, key=lambda p: (p[0][1]+p[1][1]+p[2][1])/3, reverse=True)
+
+    return sorted_points
 
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Augmented reality application')

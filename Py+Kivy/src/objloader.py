@@ -41,8 +41,8 @@ class OBJ:
                         norms.append(int(w[2]))
                     else:
                         norms.append(0)
-                self.faces.append((face, norms, texcoords, material))
-                # self.faces.append((face, norms, texcoords))
+                # self.faces.append((face, norms, texcoords, material))
+                self.faces.append((face, norms, texcoords))
     def __str__(self):
         print(self.vertices)
         print(self.normals)
