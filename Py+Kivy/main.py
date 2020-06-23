@@ -23,11 +23,17 @@ class City():
         self.kp, self.desc = sift.detectAndCompute(self.img, None)
         self.model = OBJ(model, swapyz=True)
 
-Simf = City('ref/Simf.jpg', 'models/test.obj')
+Simf = City('ref/Simf.png', 'models/Simf.obj')
+Sevas = City('ref/Sevas.png', 'models/Sevas.obj')
+Yalta = City('ref/Yalta.png', 'models/Yalta.obj')
+Kerch = City('ref/Kerch.png', 'models/Kerch.obj')
+Sudak = City('ref/Sudak.png', 'models/Sudak.obj')
 th = ''
 
 # Определение схожести строк
 def similarity(s1, s2):
+    if len(s1) == 0:
+        return 0
     low1 = s1.lower()
     low2 = s2.lower()
     match = fuzz.partial_ratio(low2, low1)
@@ -42,7 +48,8 @@ def getTextWithTesseract(frame):
     # Для распознавания текста как одного слова
     custom_oem_psm_config = r'--oem 3 --psm 7 bazaar'
     # Поиск слова и разделение его на символы с координатами каждого из них
-    dirty = tesseract.image_to_string(blur, lang="rus", config=custom_oem_psm_config).split('\n')
+    dirty = tesseract.image_to_string(blur, lang="rus").split('\n')
+    print(dirty)
     allSymb = list(map((lambda x: list(x)), dirty))
     # Удаление не кириллических символов
     letters = list(map(lambda e: list(filter(lambda x: len(x) > 0 and ord(x) in range(1040, 1103), e)), allSymb))
@@ -93,18 +100,18 @@ class CamApp(App):
         if similarity(text, "cимферополь") > 0.7:
             text = "Симферополь"
             self.city = Simf
-        # elif similarity(text, "севастополь") > 0.5:
-        # 	text = "Севастополь"
-        #     self.city = Sevas
-        # elif similarity(text, "керчь") > 0.5:
-        # 	text = "Керчь"
-        #     self.city = Kerch
-        # elif similarity(text, "судак") > 0.5:
-        # 	text = "Судак"
-        #     self.city = Sudak
-        # elif similarity(text, "ялта") > 0.5:
-        # 	text = "Ялта"
-        #     self.city = Yalta
+        elif similarity(text, "севастополь") > 0.7:
+            text = "Севастополь"
+            self.city = Sevas
+        elif similarity(text, "керчь") > 0.7:
+            text = "Керчь"
+            self.city = Kerch
+        elif similarity(text, "судак") > 0.7:
+            text = "Судак"
+            self.city = Sudak
+        elif similarity(text, "ялта") > 0.7:
+            text = "Ялта"
+            self.city = Yalta
         else:
             text += " Плохо"
 
