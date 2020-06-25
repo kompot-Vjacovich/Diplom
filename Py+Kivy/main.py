@@ -23,38 +23,40 @@ class City():
         self.kp, self.desc = sift.detectAndCompute(self.img, None)
         self.model = OBJ(model, swapyz=True)
 
-Simf = City('ref/Simf.png', 'models/Simf.obj')
-Sevas = City('ref/Sevas.png', 'models/Sevas.obj')
-Yalta = City('ref/Yalta.png', 'models/Yalta.obj')
-Kerch = City('ref/Kerch.png', 'models/Kerch.obj')
-Sudak = City('ref/Sudak.png', 'models/Sudak.obj')
+Simf = City('ref/Simf.jpg', 'models/test.obj')
+Sevas = City('ref/Sevas.jpg', 'models/Sevas.obj')
+Yalta = City('ref/Yalta.jpg', 'models/Yalta.obj')
+Kerch = City('ref/Kerch.jpg', 'models/Kerch.obj')
+Sudak = City('ref/Sudak1.jpg', 'models/Sudak.obj')
 th = ''
 
 # Определение схожести строк
 def similarity(s1, s2):
-    if len(s1) == 0:
+    if len(s1) < len(s2)/2:
         return 0
-    low1 = s1.lower()
-    low2 = s2.lower()
-    match = fuzz.partial_ratio(low2, low1)
+
+    dictionary = {
+        'симферополь': 'CUM@EPONO1b',
+        'керчь': 'KEPUb',
+        'севастополь': 'CEBACTONO1b',
+        'судак': 'CYMAK',
+        'ялта': 'SITA'
+    }
+    match = fuzz.partial_ratio(dictionary[s2], s1.upper())
     return match/100
+
 
 # Извлечение текста из изображения
 def getTextWithTesseract(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray,(5,5),0)
     edges = cv2.Canny(blur,100,200)
-
+    
     # Для распознавания текста как одного слова
     custom_oem_psm_config = r'--oem 3 --psm 7 bazaar'
     # Поиск слова и разделение его на символы с координатами каждого из них
-    dirty = tesseract.image_to_string(blur, lang="rus").split('\n')
-    print(dirty)
-    allSymb = list(map((lambda x: list(x)), dirty))
-    # Удаление не кириллических символов
-    letters = list(map(lambda e: list(filter(lambda x: len(x) > 0 and ord(x) in range(1040, 1103), e)), allSymb))
-
-    text = ''.join(list(map(lambda x: ''.join(x), letters)))
+    dirty = tesseract.image_to_string(edges)
+    text = dirty.replace(' ', '')
 
     return text
 
@@ -97,7 +99,7 @@ class CamApp(App):
         text = getTextWithTesseract(self.goodImg)
         text = text.lower()
         print(text)
-        if similarity(text, "cимферополь") > 0.7:
+        if similarity(text, "симферополь") > 0.7:
             text = "Симферополь"
             self.city = Simf
         elif similarity(text, "севастополь") > 0.7:

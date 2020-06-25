@@ -13,7 +13,7 @@ MIN_MATCH_COUNT = 15
 
 def main():
     # Исходная модель
-    img1 = cv2.imread('answer/fuck.jpg')
+    img1 = cv2.imread('answer/Sudak1.jpg')
     # 3D модель в формате OBJ
     obj = OBJ('models/simf.obj', swapyz=True)
     # Матрица параметров камеры 
@@ -72,7 +72,7 @@ def render(img, obj, projection, model, color=False):
     """
     Рендер 3D модели на кадр
     """
-    scale_matrix = np.eye(3)
+    scale_matrix = np.eye(3)*0.5
     h, w, channels = model.shape
     sorted_faces = sort_points(obj.faces, obj.vertices)
     maximum = sorted_faces[0]
@@ -86,7 +86,7 @@ def render(img, obj, projection, model, color=False):
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
         distance = np.array([p[1] for p in points])
         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-        print(dst)
+        # print(dst)
         imgpts = np.int32(dst)
         if color is False:
             cv2.fillConvexPoly(img, imgpts, (137, 27, 211))
@@ -97,6 +97,33 @@ def render(img, obj, projection, model, color=False):
             cv2.fillConvexPoly(img, imgpts, color)
 
     return img
+
+# def render(img, obj, projection, model, color=False):
+#     """
+#     Рендер 3D модели на кадр
+#     """
+#     vertices = obj.vertices
+#     scale_matrix = np.eye(3)
+#     h, w, channels = model.shape
+
+#     for face in obj.faces:
+#         face_vertices = face[0]
+#         points = np.array([vertices[vertex - 1] for vertex in face_vertices])
+#         points = np.dot(points, scale_matrix)
+#         # Визуализация модели в середине опорной поверхности. 
+#         # Для этого точки модели должны быть смещены
+#         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+#         distance = np.array([p[1] for p in points])
+#         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+#         imgpts = np.int32(dst)
+#         if color is False:
+#             cv2.fillConvexPoly(img, imgpts, (137, 27, 211))
+#         else:
+#             color = 128*np.mean(distance)/maximum
+#             color = tuple([round(color)] * 3)
+#             cv2.fillConvexPoly(img, imgpts, color)
+
+#     return img
 
 def projection_matrix(camera_parameters, homography):
     """

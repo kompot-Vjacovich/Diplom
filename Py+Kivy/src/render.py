@@ -1,30 +1,59 @@
 import cv2
 import numpy as np
 import cv2
+import math
 
 sift = cv2.xfeatures2d.SIFT_create()
+camera_parameters = np.array([[800, 0, 320], [0, 800, 240], [0, 0, 1]])
 # Feature matching
 index_params = dict(algorithm = 0, trees = 5)
 search_params = dict()
 flann = cv2.FlannBasedMatcher(index_params, search_params)
 MIN_MATCH_COUNT = 15
 
+# def render(img, obj, projection, model):
+#     """
+#     Рендер 3D модели на кадр
+#     """
+#     scale_matrix = np.eye(3)
+#     # h, w, channels = model.shape
+#     h, w = model.shape
+#     sorted_faces = sort_points(obj.faces, obj.vertices)
+
+#     for face in sorted_faces:
+#         points = np.dot(face, scale_matrix)
+#         # Визуализация модели в середине опорной поверхности. 
+#         # Для этого точки модели должны быть смещены
+#         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+#         distance = np.array([p[1] for p in points])
+#         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+#         imgpts = np.int32(dst)        
+#         positive = list(map(lambda x: abs(x), distance))
+#         color = 128*np.mean(distance)/max(positive)
+#         color = tuple([round(color)] * 3)
+#         cv2.fillConvexPoly(img, imgpts, color)
+
+#     return img
+
 def render(img, obj, projection, model):
     """
     Рендер 3D модели на кадр
     """
+    vertices = obj.vertices
     scale_matrix = np.eye(3)
-    h, w, channels = model.shape
-    sorted_faces = sort_points(obj.faces, obj.vertices)
+    h, w = model.shape
 
-    for face in sorted_faces:
-        points = np.dot(face, scale_matrix)
+    for face in obj.faces:
+        face_vertices = face[0]
+        points = np.array([vertices[vertex - 1] for vertex in face_vertices])
+        points = np.dot(points, scale_matrix)
         # Визуализация модели в середине опорной поверхности. 
         # Для этого точки модели должны быть смещены
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
         distance = np.array([p[1] for p in points])
         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-        imgpts = np.int32(dst)        
+        imgpts = np.int32(dst)
+        
         positive = list(map(lambda x: abs(x), distance))
         color = 128*np.mean(distance)/max(positive)
         color = tuple([round(color)] * 3)
@@ -107,9 +136,10 @@ def pasteModelIntoFrame(city, frame, goodImg):
             #     dst = cv2.perspectiveTransform(pts, matrix)
             #     final_image = cv2.polylines(final_image, [np.int32(dst)], True, (255, 0, 0), 3)
             if matrix is not None:
+                print(matrix)
                 # Получение матрицы 3D-проекции из параметров матрицы гомографии и камеры
                 projection = projection_matrix(camera_parameters, matrix)  
                 # Проектирование модели
-                final_image = render(frame, city.model, projection, img1)
+                final_image = render(frame, city.model, projection, city.img)
 
     return final_image
