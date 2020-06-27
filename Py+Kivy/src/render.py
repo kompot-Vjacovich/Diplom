@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import cv2
 import math
 
 sift = cv2.xfeatures2d.SIFT_create()
