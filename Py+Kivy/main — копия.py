@@ -66,7 +66,7 @@ class CamApp(App):
         self.img1=Image()
         layout = BoxLayout(orientation="vertical")
         layout.add_widget(self.img1)
-        #opencv2 stuffs
+        # Захват кадра
         self.capture = cv2.VideoCapture(0)
         self.city = Simf
         _, self.goodImg = self.capture.read()
@@ -100,23 +100,15 @@ class CamApp(App):
         text = text.lower()
         print(text)
         if similarity(text, "симферополь") > 0.7:
-            text = "Симферополь"
             self.city = Simf
         elif similarity(text, "севастополь") > 0.7:
-            text = "Севастополь"
             self.city = Sevas
         elif similarity(text, "керчь") > 0.7:
-            text = "Керчь"
             self.city = Kerch
         elif similarity(text, "судак") > 0.7:
-            text = "Судак"
             self.city = Sudak
         elif similarity(text, "ялта") > 0.7:
-            text = "Ялта"
             self.city = Yalta
-        else:
-            text += " Плохо"
 
-        print(text)
 if __name__ == '__main__':
     CamApp().run()
