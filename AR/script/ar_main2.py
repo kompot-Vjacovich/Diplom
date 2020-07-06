@@ -17,7 +17,7 @@ def main():
     # Исходная модель
     img1 = cv2.imread('answer/Simf.jpg')
     # 3D модель в формате OBJ
-    obj = OBJ('models/Simf2.obj', swapyz=False)
+    obj = OBJ('models/Simf2.obj', swapyz=True)
     # Матрица параметров камеры 
     camera_parameters = np.array([[800, 0, 320], [0, 800, 240], [0, 0, 1]])
     sift = cv2.xfeatures2d.SIFT_create()
@@ -59,9 +59,9 @@ def main():
                     # Получение матрицы 3D-проекции из параметров матрицы гомографии и камеры
                     projection = projection_matrix(camera_parameters, matrix)  
                     # Проектирование модели
-                    final_image = render1(frame, obj, projection, img1, True)
+                    final_image = render1(frame, obj, projection, img1)
                     global N
-                    cv2.imwrite('res/Simf%d.jpg' % N, final_image)
+                    # cv2.imwrite('res/Simf%d.jpg' % N, final_image)
                     N += 1
 
 
@@ -74,37 +74,35 @@ def main():
     cv2.destroyAllWindows()
     return 0
 
-def render(img, obj, projection, model, color=False):
+def render(img, obj, projection, model):
     """
     Рендер 3D модели на кадр
     """
+    vertices = obj.vertices
     scale_matrix = np.eye(3)
     h, w, channels = model.shape
-    sorted_faces = sort_points(obj.faces, obj.vertices)
-    maximum = sorted_faces[0]
-    maximum = sorted(maximum, key=lambda p: p[1])
-    maximum = maximum[-1][1]
 
-    for face in sorted_faces:
-        points = np.dot(face, scale_matrix)
+    for face in obj.faces:
+        face_vertices = face[0]
+        points = np.array([vertices[vertex - 1] for vertex in face_vertices])
+        points = np.dot(points, scale_matrix)
         # Визуализация модели в середине опорной поверхности. 
         # Для этого точки модели должны быть смещены
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
-        distance = np.array([p[1] for p in points])
         dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-        # print(dst)
         imgpts = np.int32(dst)
-        if color is False:
-            cv2.fillConvexPoly(img, imgpts, (137, 27, 211))
+        color = face[-1]
+        if not color:
+            cv2.fillConvexPoly(img, imgpts, (160, 160, 160))
         else:
-            positive = list(map(lambda x: abs(x), distance))
-            color = 128*np.mean(distance)/max(positive)
-            color = tuple([round(color)] * 3)
+            # color = hex_to_rgb(face[-1])
+            # color = color[::-1]  # reverse
+            color = tuple([int(color)] * 3)
             cv2.fillConvexPoly(img, imgpts, color)
 
     return img
 
-def render1(img, obj, projection, model, color=False):
+def render1(img, obj, projection, model):
     """
     Рендер 3D модели на кадр
     """
@@ -120,28 +118,31 @@ def render1(img, obj, projection, model, color=False):
         # Визуализация модели в середине опорной поверхности. 
         # Для этого точки модели должны быть смещены
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+        color = face[-1]
+        lst = list(points)
+        lst.append(color)
+        points = np.asarray(lst)
         unsorted.append(points)
 
 
-    # sorted_points = sorted(unsorted, key=lambda p: (p[0][1]+p[1][1]+p[2][1])/3, reverse=False)
-    # unsorted_flip = np.flipud(unsorted)
+    # sorted_points = sorted(unsorted, key=lambda p: min([p[0][1], p[1][1], p[2][1]]), reverse=False)
+    sorted_points = sorted(unsorted, key=cmp_to_key(sort_points), reverse=False)
 
-    for points in unsorted:
-        distance = np.array([p[1] for p in points])
-        points2 = np.array([[p[0], -p[1], p[2]] for p in points])
-        dst = cv2.perspectiveTransform(points2.reshape(-1, 1, 3), projection)
+    for points in sorted_points:
+        color = points[-1]
+        lst = list(points)
+        lst.pop()
+        points = np.asarray(lst)
+        dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
         imgpts = np.int32(dst)
         
-        positive = list(map(lambda x: abs(x), distance))
-        color = 128*np.mean(distance)/max(positive)
-        if points[0][0] == (points[1][0] + points[2][0])/2:
-            color = 64
-        elif points[0][1] == (points[1][1] + points[2][1])/2:
-            color = 128
-        elif points[0][2] == (points[1][2] + points[2][2])/2:
-            color = 192
-        color = tuple([round(color)] * 3)
-        cv2.fillConvexPoly(img, imgpts, color)
+        if not color:
+            cv2.fillConvexPoly(img, imgpts, (160, 160, 160))
+        else:
+            # color = hex_to_rgb(face[-1])
+            # color = color[::-1]  # reverse
+            color = tuple([int(color)] * 3)
+            cv2.fillConvexPoly(img, imgpts, color)
 
     return img
 
@@ -180,16 +181,33 @@ def hex_to_rgb(hex_color):
     h_len = len(hex_color)
     return tuple(int(hex_color[i:i + h_len // 3], 16) for i in range(0, h_len, h_len // 3))
 
-def sort_points(faces, vertices):
-    all_points = []
-    for face in faces:
-        face_vertices = face[0]
-        points = np.array([vertices[vertex - 1] for vertex in face_vertices])
-        all_points.append(points)
+def sort_points(a, b):
+    m1 = max([a[0][1], a[1][1], a[2][1]])
+    m2 = max([b[0][1], b[1][1], b[2][1]])
+    n1 = max([a[0][2], a[1][2], a[2][2]])
+    n2 = max([b[0][2], b[1][2], b[2][2]])
+    if n1 == n2:
+        return m1 - m2
+    return n1 - n2
 
-    sorted_points = sorted(all_points, key=lambda p: (p[0][1]+p[1][1]+p[2][1])/3, reverse=True)
-
-    return sorted_points
+def cmp_to_key(mycmp):
+    # 'Перевести cmp=функция в key=функция'
+    class K(object):
+        def __init__(self, obj, *args):
+            self.obj = obj
+        def __lt__(self, other):
+            return mycmp(self.obj, other.obj) < 0
+        def __gt__(self, other):
+            return mycmp(self.obj, other.obj) > 0
+        def __eq__(self, other):
+            return mycmp(self.obj, other.obj) == 0
+        def __le__(self, other):
+            return mycmp(self.obj, other.obj) <= 0
+        def __ge__(self, other):
+            return mycmp(self.obj, other.obj) >= 0
+        def __ne__(self, other):
+            return mycmp(self.obj, other.obj) != 0
+    return K
 
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Augmented reality application')
